@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c ' *)",
+      "Bash(grep -oiE \"\\(caucion|caución|a_f3_market|TASACOLOCAR|TASATOMAR|spot rate|tasa de mercado|pesos|dolar|dólar\\)[^<]{0,120}\" diccionario_variables.html)",
+      "Bash(python analisis_tp_orderflow.py --no-figuras)",
+      "Bash(PYTHONIOENCODING=utf-8 python -c ' *)",
+      "Bash(PYTHONIOENCODING=utf-8 python3 -)",
+      "Bash(PYTHONIOENCODING=utf-8 python \"C:/Users/Natalia/AppData/Local/Temp/claude/c--Users-Natalia-variables-tp-stats/4e5a8cdf-cec5-4e5a-a3c9-5ef1da05482f/scratchpad/edit_nb.py\")",
+      "Bash(PYTHONIOENCODING=utf-8 jupyter nbconvert --to notebook --execute --inplace --ExecutePreprocessor.timeout=180 notebooks/tp_orderflow_junio.ipynb)"
+    ]
+  }
+}

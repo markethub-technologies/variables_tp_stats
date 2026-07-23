@@ -1,0 +1,239 @@
+<!doctype html><html lang=es><head><meta charset=utf-8>
+<meta name=viewport content="width=device-width,initial-scale=1">
+<title>TP order-flow junio 2026 — diccionario de variables</title><style>
+:root{color-scheme:light dark}
+*{box-sizing:border-box}
+body{font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;max-width:1120px;margin:0 auto;padding:28px 20px 70px;color:#1a1a1a;line-height:1.55;background:#fff}
+h1{font-size:27px;margin:0 0 2px} h2{font-size:20px;margin:40px 0 6px;border-bottom:2px solid #eaeef2;padding-bottom:6px}
+h3{font-size:14px;margin:24px 0 4px;color:#2C7FB8;text-transform:uppercase;letter-spacing:.04em}
+.sub{color:#666;margin:0 0 4px}
+table{border-collapse:collapse;width:100%;margin:8px 0 4px;font-size:13.5px}
+th,td{border:1px solid #e6e9ee;padding:7px 10px;text-align:left;vertical-align:top}
+th{background:#f5f7fa;font-weight:600}
+code{background:#f0f2f5;padding:1px 5px;border-radius:4px;font-size:12.5px;font-family:ui-monospace,Menlo,monospace}
+.var{font-family:ui-monospace,Menlo,monospace;font-weight:600;white-space:nowrap;font-size:12.5px}
+.box{background:#eef6fb;border-left:4px solid #2C7FB8;padding:12px 16px;border-radius:6px;margin:16px 0}
+.box.warn{background:#fdf3ec;border-color:#DD8452}
+.box.ok{background:#eef7ee;border-color:#4C9A5B}
+.pill{display:inline-block;background:#e8eef5;border-radius:10px;padding:1px 9px;font-size:12px;margin:2px 2px}
+.muted{color:#777;font-size:12.5px}
+.src{font-family:ui-monospace,Menlo,monospace;font-size:12px;color:#555;white-space:nowrap}
+.kpi{display:flex;gap:14px;flex-wrap:wrap;margin:12px 0}
+.kpi .card{flex:1;min-width:150px;background:#f7f9fb;border:1px solid #e6e9ee;border-radius:8px;padding:12px 14px}
+.kpi .card b{display:block;font-size:23px;color:#12405a} .kpi .card span{font-size:12px;color:#666}
+pre{background:#f6f8fa;border:1px solid #e6e9ee;border-radius:8px;padding:12px 14px;overflow-x:auto;font-size:12px;line-height:1.5;font-family:ui-monospace,Menlo,monospace}
+pre .kw{color:#a626a4} pre .fn{color:#2C7FB8} pre .cm{color:#8a9199;font-style:italic}
+details{margin:8px 0} summary{cursor:pointer;font-weight:600;color:#2C7FB8;font-size:13.5px}
+col.cv{width:250px} col.cs{width:180px}
+a{color:#2C7FB8}
+@media (prefers-color-scheme:dark){
+ body{background:#14181c;color:#dfe4ea} h2{border-color:#2a323b} h1{color:#eaeef2}
+ th{background:#1c2229} th,td{border-color:#2a323b} code,.var{background:#222932}
+ .box{background:#152532} .kpi .card{background:#1a2027;border-color:#2a323b} .kpi .card b{color:#7fc3e8}
+ .sub,.muted,.src{color:#9aa4ae} .pill{background:#243040;color:#cfd8e2}
+ pre{background:#171c22;border-color:#2a323b} tr:nth-child(even) td{background:#171c22}
+}
+</style></head><body>
+
+<h1>Tasa Plazos Spot — order-flow · junio 2026</h1>
+<p class=sub>Diccionario del dataset <code>features_tp_combined_junio.db</code> · una fila por <b>(ticker, fecha)</b> · 62 filas × 99 columnas</p>
+<p class=muted>Universo: <b>AL30</b> (pesos, cuenta 10410), <b>AL30C</b> (cable, 10709), <b>AL30D</b> (dólar MEP, 10302). Estrategia <code>devs-strat-TasaPlazosSpot</code>. Ventana: 2026-06-01 → 2026-06-30.</p>
+
+<div class=kpi>
+  <div class=card><b>99</b><span>columnas (60 originales + 28 nuevas BOT_* + meta)</span></div>
+  <div class=card><b>62</b><span>filas (ticker × rueda)</span></div>
+  <div class=card><b>3</b><span>tablas ClickHouse + 1 Google Sheet</span></div>
+</div>
+
+<div class=box><b>Dos capas de variables.</b> Las <b>originales</b> del pipe (<code>MKT_*</code>, <code>SPREAD_*</code>, <code>LAT_*</code>) miden <b>el mercado y el libro</b> — qué tasa había, qué spread, qué latencia. Las <b>candidatas nuevas</b> (<code>BOT_*</code>) miden <b>cómo operó el bot</b> — pasivo vs agresivo, IOC, órdenes fallidas, tenencia PPT/OTC y las tasas que efectivamente ejecutó. El detalle de las originales está en <a href="diccionario_variables_originales.html">diccionario_variables_originales.html</a>; acá se documentan a nivel de grupo y en detalle las nuevas, con la query exacta de cada una.</div>
+
+<div class="box warn"><b>PnL en moneda nativa.</b> <code>BOT_PNL</code> viene del Sheet del trader por ticker: AL30 en pesos, AL30D en dólar MEP, AL30C en cable. <b>No sumar entre tickers</b> sin tipo de cambio. AL30C <b>no loguea</b> <code>best/worst_*_rate</code> en <code>strategy_statistics</code>, así que sus <code>BOT_RATE_*</code> quedan en NaN.</div>
+
+
+<h2>Fuentes de datos</h2>
+<table><tr><th>Fuente</th><th>Base / tabla</th><th>Qué aporta</th></tr>
+<tr><td>Telemetría del bot</td><td class=src>prod_strategy.connector_execution_report</td><td>Fills, pasivo/agresivo (TIF), ciclo de órdenes (replace/reject/expire/cancel), volumen por pata y lado.</td></tr>
+<tr><td>Telemetría del bot</td><td class=src>prod_strategy.strategy_on_order_event</td><td>Órdenes enviadas y su <b>intención</b> (<code>causality</code>): pasivo / agresivo / reversión / balanceo.</td></tr>
+<tr><td>Telemetría del bot</td><td class=src>prod_strategy.strategy_underlying_holding_query</td><td>Tenencia por subyacente: cantidad PPT (<code>quantity</code>) y OTC (<code>otc_quantity</code>).</td></tr>
+<tr><td>Telemetría del bot</td><td class=src>prod_strategy.strategy_statistics</td><td>Series que emite la estrategia (64 tipos); usamos las 6 de tasas + la tasa de mercado <code>a_f3_market_*</code>.</td></tr>
+<tr><td>Telemetría del bot</td><td class=src>prod_strategy.strategy_execution_started</td><td>Mapa <code>live_id → ticker → cuenta → security_id</code> por rueda (arma los filtros de las demás queries).</td></tr>
+<tr><td>Libro de mercado</td><td class=src>historical.connector_books</td><td><b>Originales</b>: precio, spread, volumen, cola N1, y las <b>tasas implícitas</b> <code>MKT_TASA_*</code>.</td></tr>
+<tr><td>Catálogo instrumentos</td><td class=src>trading.symbols</td><td>Tipo de instrumento, moneda, multiplicador de contrato (vía <code>classify()</code>).</td></tr>
+<tr><td>PnL del trader</td><td class=src>Google Sheet · hoja "PnL"</td><td><code>BOT_PNL</code> diario por ticker, en moneda nativa.</td></tr>
+</table>
+
+<div class=box><b>Pipeline de construcción</b> (ver <code>pipeline_referencia/</code>). Orden:
+<code>build_features_tp_orderflow.py</code> (BOT_* + PnL desde CH y Sheets) →
+<code>build_tp_catalogos.py</code> (los dos CSV auxiliares) →
+el pipe original <code>tp_stats.py</code> (MKT_*/SPREAD_*/LAT_*) →
+<code>build_features_tp_combined.py</code> (join por ticker/fecha → este db).
+Estos scripts <b>no</b> son standalone (dependen de ClickHouse y de librerías internas); el análisis
+<code>analisis_tp_orderflow.py</code> sí lo es y corre sobre el db ya construido.</div>
+
+
+<h2>Meta / identificación</h2>
+<table><colgroup><col class=cv><col><col class=cs></colgroup>
+<tr><th>Variable</th><th>Significado</th><th>Origen</th></tr>
+<tr><td class=var>fecha</td><td>Rueda (YYYY-MM-DD).</td><td class=src>partition_date</td></tr>
+<tr><td class=var>ticker</td><td>AL30 / AL30C / AL30D.</td><td class=src>symbols.security_id</td></tr>
+<tr><td class=var>account</td><td>Cuenta operativa del día (AL30→10410, AL30C→10709, AL30D→10302).</td><td class=src>execution_started.accounts</td></tr>
+<tr><td class=var>TIPO_INSTRUMENTO</td><td>Clase del instrumento (bono).</td><td class=src>classify() · trading.symbols</td></tr>
+<tr><td class=var>CURRENCY</td><td>Moneda nativa del PnL (ars / ext / usd).</td><td class=src>classify()</td></tr>
+<tr><td class=var>CONTRACT_MULTIPLIER</td><td>Multiplicador de contrato (factor de PnL).</td><td class=src>classify()</td></tr>
+<tr><td class=var>n_live</td><td>Cantidad de <code>live_id</code> activos ese día para el ticker.</td><td class=src>execution_started</td></tr>
+<tr><td class=var>BOT_PNL</td><td>PnL diario del trader, <b>moneda nativa</b>. No sumar entre tickers.</td><td class=src>Google Sheet "PnL"</td></tr>
+</table>
+
+
+<h2>Candidatas nuevas — order-flow del bot (<code>BOT_*</code>)</h2>
+
+<h3>Order-flow ejecutado · connector_execution_report</h3>
+<p class=muted>Todos los fills del ticker en junio. El filtro por <code>security_id</code> aísla el instrumento aunque la cuenta esté compartida. <code>TRADE</code>=fill; <code>REPLACED</code>=recotización; <code>EXPIRED</code> (IOC)=intento agresivo que no fillo; <code>REJECTED</code>=rechazo; <code>PARTIALLY_FILLED</code> vs <code>FILLED</code>=calidad del fill.</p>
+<table><colgroup><col class=cv><col><col class=cs></colgroup>
+<tr><th>Variable</th><th>Significado / cálculo</th><th>Fuente</th></tr>
+<tr><td class=var>BOT_FILL_VOL</td><td>Volumen nominal operado: <code>sum(last_quantity)</code> con <code>execution_type='TRADE'</code>.</td><td class=src>connector_execution_report</td></tr>
+<tr><td class=var>BOT_N_FILLS</td><td>Cantidad de fills: <code>count(TRADE)</code>.</td><td class=src>connector_execution_report</td></tr>
+<tr><td class=var>BOT_AGGRESSIVE_VOL_RATIO</td><td>% del volumen fill con <code>TIF=IMMEDIATE_OR_CANCEL</code> (agresivo / toma liquidez).</td><td class=src>connector_execution_report</td></tr>
+<tr><td class=var>BOT_PASSIVE_VOL_RATIO</td><td>% del volumen fill con <code>TIF=DAY</code> (pasivo / cotiza).</td><td class=src>connector_execution_report</td></tr>
+<tr><td class=var>BOT_VOL_CI</td><td>Volumen fill de la pata CI (<code>security_id</code> contiene <code>-0001-</code>).</td><td class=src>connector_execution_report</td></tr>
+<tr><td class=var>BOT_VOL_24HS</td><td>Volumen fill de la pata 24hs (<code>-0002-</code>).</td><td class=src>connector_execution_report</td></tr>
+<tr><td class=var>BOT_VOL_BUY / BOT_VOL_SELL</td><td>Volumen fill por lado (<code>side='BUY'/'SELL'</code>).</td><td class=src>connector_execution_report</td></tr>
+<tr><td class=var>BOT_PARTIAL_FILL_RATIO</td><td>% de fills <code>PARTIALLY_FILLED</code> sobre (FILLED + PARTIALLY_FILLED).</td><td class=src>connector_execution_report</td></tr>
+<tr><td class=var>BOT_N_REPLACE</td><td>Recotizaciones: <code>count(REPLACED)</code>.</td><td class=src>connector_execution_report</td></tr>
+<tr><td class=var>BOT_N_REJECTED</td><td>Órdenes rechazadas: <code>count(REJECTED)</code>.</td><td class=src>connector_execution_report</td></tr>
+<tr><td class=var>BOT_N_EXPIRED</td><td>IOC vencidos sin fillar: <code>count(EXPIRED)</code>.</td><td class=src>connector_execution_report</td></tr>
+<tr><td class=var>BOT_N_CANCELED</td><td>Cancelaciones: <code>count(CANCELED)</code>.</td><td class=src>connector_execution_report</td></tr>
+<tr><td class=var>BOT_IOC_FILL_RATIO</td><td>De los intentos IOC (TRADE+EXPIRED), % que consiguió fill.</td><td class=src>connector_execution_report</td></tr>
+</table>
+<details><summary>Query — order-flow ejecutado + ciclo de órdenes</summary>
+<pre><span class=kw>SELECT</span> toString(partition_date) fecha,
+       <span class=cm>-- volumen fill y pasivo/agresivo</span>
+       sumIf(last_quantity, execution_type=<span class=kw>'TRADE'</span> <span class=kw>AND</span> time_in_force=<span class=kw>'IMMEDIATE_OR_CANCEL'</span>) agg,
+       sumIf(last_quantity, execution_type=<span class=kw>'TRADE'</span> <span class=kw>AND</span> time_in_force=<span class=kw>'DAY'</span>) pas,
+       sumIf(last_quantity, execution_type=<span class=kw>'TRADE'</span>) tot,
+       countIf(execution_type=<span class=kw>'TRADE'</span>) n,
+       <span class=cm>-- volumen por pata (CI=0001 / 24hs=0002) y por lado</span>
+       sumIf(last_quantity, execution_type=<span class=kw>'TRADE'</span> <span class=kw>AND</span> position(security_id, <span class=kw>'-0001-'</span>)&gt;0) vol_ci,
+       sumIf(last_quantity, execution_type=<span class=kw>'TRADE'</span> <span class=kw>AND</span> position(security_id, <span class=kw>'-0002-'</span>)&gt;0) vol_24,
+       sumIf(last_quantity, execution_type=<span class=kw>'TRADE'</span> <span class=kw>AND</span> side=<span class=kw>'BUY'</span>)  vol_buy,
+       sumIf(last_quantity, execution_type=<span class=kw>'TRADE'</span> <span class=kw>AND</span> side=<span class=kw>'SELL'</span>) vol_sell,
+       <span class=cm>-- calidad del fill</span>
+       countIf(execution_type=<span class=kw>'TRADE'</span> <span class=kw>AND</span> order_status=<span class=kw>'FILLED'</span>)           n_filled,
+       countIf(execution_type=<span class=kw>'TRADE'</span> <span class=kw>AND</span> order_status=<span class=kw>'PARTIALLY_FILLED'</span>)  n_partial,
+       <span class=cm>-- ciclo de vida / fallidas</span>
+       countIf(execution_type=<span class=kw>'REPLACED'</span>)  n_replace,
+       countIf(execution_type=<span class=kw>'REJECTED'</span>)  n_rejected,
+       countIf(execution_type=<span class=kw>'EXPIRED'</span>)   n_expired,
+       countIf(execution_type=<span class=kw>'CANCELED'</span>)  n_canceled,
+       <span class=cm>-- IOC: intentos (TRADE+EXPIRED) vs fills</span>
+       countIf(time_in_force=<span class=kw>'IMMEDIATE_OR_CANCEL'</span> <span class=kw>AND</span> execution_type=<span class=kw>'TRADE'</span>)   ioc_trade,
+       countIf(time_in_force=<span class=kw>'IMMEDIATE_OR_CANCEL'</span> <span class=kw>AND</span> execution_type=<span class=kw>'EXPIRED'</span>) ioc_expired
+<span class=kw>FROM</span> prod_strategy.connector_execution_report
+<span class=kw>WHERE</span> partition_date <span class=kw>BETWEEN</span> '2026-06-01' <span class=kw>AND</span> '2026-06-30'
+  <span class=kw>AND</span> account <span class=kw>IN</span> (...) <span class=kw>AND</span> security_id <span class=kw>IN</span> (...)
+<span class=kw>GROUP BY</span> fecha</pre></details>
+
+<h3>Intención de órdenes · strategy_on_order_event</h3>
+<p class=muted>Etiqueta de intención por orden nueva (<code>status='PENDING_NEW'</code>), vía <code>causality</code>. Prefijos: <code>pipeline_pasivo_*</code>, <code>pipeline_agresivo</code>, <code>pipeline_reversion</code>, <code>pipeline_balance_*</code>.</p>
+<table><colgroup><col class=cv><col><col class=cs></colgroup>
+<tr><th>Variable</th><th>Significado / cálculo</th><th>Fuente</th></tr>
+<tr><td class=var>BOT_N_ORDERS</td><td>Órdenes enviadas en el día.</td><td class=src>strategy_on_order_event</td></tr>
+<tr><td class=var>BOT_IOC_ORDER_RATIO</td><td>% de órdenes enviadas con <code>TIF=IOC</code>.</td><td class=src>strategy_on_order_event</td></tr>
+<tr><td class=var>BOT_ORD_PASIVO_PCT</td><td>% de órdenes con causa <code>pipeline_pasivo*</code>.</td><td class=src>strategy_on_order_event</td></tr>
+<tr><td class=var>BOT_ORD_AGRESIVO_PCT</td><td>% de órdenes con causa <code>pipeline_agresivo</code>.</td><td class=src>strategy_on_order_event</td></tr>
+<tr><td class=var>BOT_ORD_REVERSION_PCT</td><td>% de órdenes con causa <code>pipeline_reversion</code>.</td><td class=src>strategy_on_order_event</td></tr>
+<tr><td class=var>BOT_ORD_BALANCE_PCT</td><td>% de órdenes con causa <code>pipeline_balance*</code>.</td><td class=src>strategy_on_order_event</td></tr>
+</table>
+<details><summary>Query — intención de órdenes</summary>
+<pre><span class=kw>SELECT</span> toString(partition_date) fecha, causality, time_in_force, count() n
+<span class=kw>FROM</span> prod_strategy.strategy_on_order_event
+<span class=kw>WHERE</span> partition_date <span class=kw>BETWEEN</span> '2026-06-01' <span class=kw>AND</span> '2026-06-30'
+  <span class=kw>AND</span> live_id <span class=kw>IN</span> (...) <span class=kw>AND</span> status=<span class=kw>'PENDING_NEW'</span>
+<span class=kw>GROUP BY</span> fecha, causality, time_in_force
+<span class=cm>-- luego, en pandas: BOT_ORD_*_PCT = 100 * ordenes(causa) / total; BOT_IOC_ORDER_RATIO = 100 * IOC / total</span></pre></details>
+
+<h3>PPT vs OTC · strategy_underlying_holding_query</h3>
+<p class=muted>Tenencia por subyacente, keyed por <code>live_id</code> (sin ambigüedad de cuenta). Último snapshot del día por live/asset (<code>argMax(..., timestamp)</code>). Sólo tenencia — no hay flujo OTC diario (<code>connector_trade_events</code> vacío en junio).</p>
+<table><colgroup><col class=cv><col><col class=cs></colgroup>
+<tr><th>Variable</th><th>Significado / cálculo</th><th>Fuente</th></tr>
+<tr><td class=var>BOT_OTC_QTY_ABS</td><td><code>|otc_quantity|</code> del subyacente (último snapshot).</td><td class=src>strategy_underlying_holding_query</td></tr>
+<tr><td class=var>BOT_OTC_RATIO</td><td>Proxy de tenencia bilateral: <code>100·|otc| / (|ppt| + |otc|)</code>.</td><td class=src>strategy_underlying_holding_query</td></tr>
+</table>
+<details><summary>Query — PPT vs OTC</summary>
+<pre><span class=kw>SELECT</span> fecha, live_id, sum(abs(q)) q, sum(abs(otc)) otc <span class=kw>FROM</span> (
+  <span class=kw>SELECT</span> toString(partition_date) fecha, live_id, asset,
+         argMax(quantity, timestamp) q, argMax(otc_quantity, timestamp) otc
+  <span class=kw>FROM</span> prod_strategy.strategy_underlying_holding_query
+  <span class=kw>PREWHERE</span> asset <span class=kw>LIKE</span> <span class=kw>'AL30%'</span>
+  <span class=kw>WHERE</span> partition_date <span class=kw>BETWEEN</span> '2026-06-01' <span class=kw>AND</span> '2026-06-30' <span class=kw>AND</span> live_id <span class=kw>IN</span> (...)
+  <span class=kw>GROUP BY</span> fecha, live_id, asset)
+<span class=kw>GROUP BY</span> fecha, live_id
+<span class=cm>-- BOT_OTC_RATIO = 100 * otc / (q + otc)</span></pre></details>
+<div class="box warn muted"><b>Nota de performance.</b> <code>strategy_statistics</code> (~378M filas/día) y <code>strategy_underlying_holding_query</code> (~17M/día) tienen un <code>ORDER BY</code> que no empieza por <code>live_id</code>, así que filtrar por <code>live_id</code> no poda la partición. Por eso se escanea el mes <b>una sola vez</b> para los tres tickers juntos y se mapea <code>live→ticker</code> en pandas. <code>PREWHERE</code> lee primero la columna barata.</div>
+
+<h3>Tasas que ve el bot · strategy_statistics</h3>
+<p class=muted>Mediana diaria de las series de tasa. <code>BOT_RATE_*</code> son los <b>umbrales de decisión</b> del bot (best/worst); <code>BOT_MKT_*_RATE</code> es la <b>tasa de mercado</b> que el bot computó (<code>a_f3_market_*</code>), en la misma escala que las <code>MKT_TASA_*</code> del libro → comparables. <b>AL30C no loguea</b> estas series (quedan NaN).</p>
+<table><colgroup><col class=cv><col><col class=cs></colgroup>
+<tr><th>Variable</th><th>Significado</th><th>statistics_type</th></tr>
+<tr><td class=var>BOT_RATE_BEST_LEND</td><td>Mejor tasa a colocar (umbral).</td><td class=src>best_lend_rate</td></tr>
+<tr><td class=var>BOT_RATE_WORST_LEND</td><td>Peor tasa a colocar aceptable.</td><td class=src>worst_lend_rate</td></tr>
+<tr><td class=var>BOT_RATE_BEST_BORROW</td><td>Mejor tasa a tomar (umbral).</td><td class=src>best_borrow_rate</td></tr>
+<tr><td class=var>BOT_RATE_WORST_BORROW</td><td>Peor tasa a tomar aceptable.</td><td class=src>worst_borrow_rate</td></tr>
+<tr><td class=var>BOT_RATE_WORST_LEND_AGG</td><td>Peor tasa a colocar en modo agresivo.</td><td class=src>worst_lend_rate_aggressive</td></tr>
+<tr><td class=var>BOT_RATE_WORST_BORROW_AGG</td><td>Peor tasa a tomar en modo agresivo.</td><td class=src>worst_borrow_rate_aggressive</td></tr>
+<tr><td class=var>BOT_MKT_LEND_RATE</td><td>Tasa de mercado a colocar que computó el bot (comparable con el libro).</td><td class=src>a_f3_market_lend_rate</td></tr>
+<tr><td class=var>BOT_MKT_BORROW_RATE</td><td>Tasa de mercado a tomar que computó el bot (comparable con el libro).</td><td class=src>a_f3_market_borrow_rate</td></tr>
+</table>
+<details><summary>Query — tasas del bot</summary>
+<pre><span class=kw>SELECT</span> toString(partition_date) fecha, live_id, statistics_type t, median(value) m
+<span class=kw>FROM</span> prod_strategy.strategy_statistics
+<span class=kw>PREWHERE</span> statistics_type <span class=kw>IN</span> (<span class=kw>'best_lend_rate'</span>,<span class=kw>'worst_lend_rate'</span>,<span class=kw>'best_borrow_rate'</span>,
+    <span class=kw>'worst_borrow_rate'</span>,<span class=kw>'worst_lend_rate_aggressive'</span>,<span class=kw>'worst_borrow_rate_aggressive'</span>,
+    <span class=kw>'a_f3_market_lend_rate'</span>,<span class=kw>'a_f3_market_borrow_rate'</span>)
+<span class=kw>WHERE</span> partition_date <span class=kw>BETWEEN</span> '2026-06-01' <span class=kw>AND</span> '2026-06-30' <span class=kw>AND</span> live_id <span class=kw>IN</span> (...)
+<span class=kw>GROUP BY</span> fecha, live_id, t</pre></details>
+
+<details><summary>Query — mapa live_id → ticker → cuenta → security_id (arma los filtros de arriba)</summary>
+<pre><span class=kw>SELECT</span> toString(partition_date) d, live_id, accounts, symbols.security_id
+<span class=kw>FROM</span> prod_strategy.strategy_execution_started
+<span class=kw>WHERE</span> partition_date <span class=kw>BETWEEN</span> '2026-06-01' <span class=kw>AND</span> '2026-06-30'
+  <span class=kw>AND</span> project_name = <span class=kw>'devs-strat-TasaPlazosSpot'</span>
+  <span class=kw>AND</span> arrayExists(x -&gt; startsWith(x, '&lt;TICKER&gt;-'), symbols.security_id)
+<span class=kw>ORDER BY</span> partition_date, timestamp</pre></details>
+
+
+<h2>Variables originales del pipe (<code>MKT_*</code>, <code>SPREAD_*</code>, <code>LAT_*</code>)</h2>
+<p class=muted>Miden el mercado/libro y la latencia. Se calculan en el pipe original (<code>tp_stats.py</code>); el detalle variable-por-variable está en <a href="diccionario_variables_originales.html">diccionario_variables_originales.html</a>. Resumen por grupo:</p>
+<table><colgroup><col class=cv><col><col class=cs></colgroup>
+<tr><th>Grupo (prefijo)</th><th>Qué es</th><th>Fuente</th></tr>
+<tr><td class=var>MKT_SPREAD_TICKS, MKT_VOLUME(_NOM), MKT_QUEUE_N1_*, MKT_N1_UPDATE_SEC, MKT_INTERTRADE_TIME_SEC, MKT_TICK_SIZE, MKT_VOLATILITY_SPREAD</td><td>Microestructura del libro: spread, volumen, cola de nivel 1, frecuencia de update, tamaño de tick.</td><td class=src>historical.connector_books</td></tr>
+<tr><td class=var>MKT_TASA_{COLOCAR,TOMAR}{BID,OFFER}PASIVO_{MEAN,MEDIAN,MODE}</td><td>Tasas implícitas del libro (relación de precios pata 24hs vs CI). Colocar = dar dinero; Tomar = tomar dinero. Anualizadas.</td><td class=src>historical.connector_books</td></tr>
+<tr><td class=var>MKT_INTRADAY_VOLATILITY_*</td><td>Volatilidad intradía de cada tasa implícita.</td><td class=src>historical.connector_books</td></tr>
+<tr><td class=var>SPREAD_*_CAUCION</td><td>Tasa implícita menos la caución (spread contra tasa libre de riesgo).</td><td class=src>libro + cauciones</td></tr>
+<tr><td class=var>LOG_CAUCION_IQR</td><td>Dispersión (IQR) del log de la caución del día.</td><td class=src>cauciones</td></tr>
+<tr><td class=var>LAT_INT_* / LAT_EXT_*</td><td>Latencia interna / externa del bot (media, std, cuantiles Q0–Q99, IQR, skew, kurt).</td><td class=src>prod_strategy</td></tr>
+</table>
+
+
+<h2>CSV auxiliares</h2>
+<table><colgroup><col class=cv><col><col class=cs></colgroup>
+<tr><th>Archivo</th><th>Qué contiene</th><th>Fuente</th></tr>
+<tr><td class=var>tp_statistics_catalog.csv</td><td>Las 64 <code>statistics_type</code> que emite la estrategia, con categoría, conteo por ticker y si ya se usa en features.</td><td class=src>strategy_statistics (2026-06-16)</td></tr>
+<tr><td class=var>tp_order_cycle_junio.csv</td><td>Ciclo de vida agregado: <code>execution_type × order_status × time_in_force</code> por ticker (conteo y volumen).</td><td class=src>connector_execution_report</td></tr>
+</table>
+<details><summary>Query — catálogo de statistics_type</summary>
+<pre><span class=kw>SELECT</span> statistics_type, live_id, count() n
+<span class=kw>FROM</span> prod_strategy.strategy_statistics
+<span class=kw>WHERE</span> partition_date='2026-06-16' <span class=kw>AND</span> live_id <span class=kw>IN</span> (...)
+<span class=kw>GROUP BY</span> statistics_type, live_id</pre></details>
+<details><summary>Query — ciclo de órdenes de junio</summary>
+<pre><span class=kw>SELECT</span> toString(execution_type) execution_type, toString(order_status) order_status,
+       toString(time_in_force) time_in_force, count() n, sum(last_quantity) qty
+<span class=kw>FROM</span> prod_strategy.connector_execution_report
+<span class=kw>WHERE</span> partition_date <span class=kw>BETWEEN</span> '2026-06-01' <span class=kw>AND</span> '2026-06-30'
+  <span class=kw>AND</span> account <span class=kw>IN</span> (...) <span class=kw>AND</span> security_id <span class=kw>IN</span> (...)
+<span class=kw>GROUP BY</span> execution_type, order_status, time_in_force</pre></details>
+
+<p class=muted style="margin-top:32px">Detalle de las variables originales: <a href="diccionario_variables_originales.html">diccionario_variables_originales.html</a> · Código de las queries: <code>pipeline_referencia/</code> · Análisis reproducible: <code>analisis_tp_orderflow.py</code>.</p>
+
+</body></html>

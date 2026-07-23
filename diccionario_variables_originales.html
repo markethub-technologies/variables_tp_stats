@@ -1,0 +1,195 @@
+<!doctype html><html lang=es><head><meta charset=utf-8>
+<meta name=viewport content="width=device-width,initial-scale=1">
+<title>research.tp_features — diccionario</title><style>
+:root{color-scheme:light dark}
+*{box-sizing:border-box}
+body{font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;max-width:1080px;margin:0 auto;padding:28px 20px 60px;color:#1a1a1a;line-height:1.55;background:#fff}
+h1{font-size:27px;margin:0 0 2px} h2{font-size:20px;margin:38px 0 6px;border-bottom:2px solid #eaeef2;padding-bottom:6px}
+h3{font-size:15px;margin:22px 0 4px;color:#2C7FB8;text-transform:uppercase;letter-spacing:.04em}
+.sub{color:#666;margin:0 0 4px}
+table{border-collapse:collapse;width:100%;margin:8px 0 4px;font-size:13.5px}
+th,td{border:1px solid #e6e9ee;padding:7px 10px;text-align:left;vertical-align:top}
+th{background:#f5f7fa;font-weight:600} td.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+code{background:#f0f2f5;padding:1px 5px;border-radius:4px;font-size:12.5px;font-family:ui-monospace,Menlo,monospace}
+.var{font-family:ui-monospace,Menlo,monospace;font-weight:600;white-space:nowrap;font-size:12.5px}
+.box{background:#eef6fb;border-left:4px solid #2C7FB8;padding:12px 16px;border-radius:6px;margin:16px 0}
+.box.warn{background:#fdf3ec;border-color:#DD8452}
+.box.ok{background:#eef7ee;border-color:#4C9A5B}
+.pill{display:inline-block;background:#e8eef5;border-radius:10px;padding:1px 9px;font-size:12px;margin:2px 2px}
+.muted{color:#777;font-size:12.5px}
+.src{font-size:12px;color:#555}
+.kpi{display:flex;gap:14px;flex-wrap:wrap;margin:12px 0}
+.kpi .card{flex:1;min-width:150px;background:#f7f9fb;border:1px solid #e6e9ee;border-radius:8px;padding:12px 14px}
+.kpi .card b{display:block;font-size:23px;color:#12405a} .kpi .card span{font-size:12px;color:#666}
+col.cv{width:255px} col.cs{width:150px}
+@media (prefers-color-scheme:dark){
+ body{background:#14181c;color:#dfe4ea} h2{border-color:#2a323b} h1{color:#eaeef2}
+ th{background:#1c2229} th,td{border-color:#2a323b} code,.var{background:#222932}
+ .box{background:#152532} .kpi .card{background:#1a2027;border-color:#2a323b} .kpi .card b{color:#7fc3e8}
+ .sub,.muted,.src{color:#9aa4ae} .pill{background:#243040;color:#cfd8e2}
+ tr:nth-child(even) td{background:#171c22}
+}
+</style></head><body>
+<h1>research.tp_features</h1>
+<p class=sub>Features diarias de <b>Tasa Plazos</b> (tasa pasiva / caución) · una fila por (instrumento, fecha) · 1,198 filas · 2024-07-01 → 2026-06-17</p>
+<p class=muted>Tabla ClickHouse en la base <code>research</code> (nombre físico <code>tp_features</code>). Fuente local: <code>data/data_bases/base_latencias_pnl.db::datos_diarios</code>. Universo: <b>AL30 (pesos), AL30D (dólar MEP), AL30C (cable)</b>.</p>
+
+<div class=box><b>El corazón de la tabla son las tasas pasivas implícitas.</b> Se derivan del <b>libro del bono</b> — la relación de precios entre la pata lejana (24hs) y la cercana (CI) —, <b>no</b> de la telemetría de la estrategia. Por eso salen de <code>connector_books</code> aunque TP haya migrado a <code>prod_strategy</code>. La única pata que <b>todavía no</b> está en ClickHouse es el <span class=var>pnl</span>, que viene de un Sheet del trader.</div>
+
+<div class="box warn"><b>Salto de definición de latencia en el borde de migración.</b> Hasta ~mayo 2026 las latencias son <i>log-based</i> (interna ~0.05 ms, externa ~6 ms); desde junio son de ClickHouse (<code>prod_strategy</code> TasaPlazosSpot: interna ~0.9 ms, externa ~2.3 ms). El cambio de nivel en el empalme es de metodología, esperado.</div>
+
+<h2>Alcance</h2>
+<p>Serie histórica continua desde <b>2024-07</b>. Tres instrumentos por rueda (una fila cada uno). En 2026: <b>351 filas</b> sobre 117 ruedas.</p>
+
+
+<h2>Fuentes de datos</h2>
+<p>Todas las variables se calculan a partir de estas fuentes (post-migración, casi todo vive en ClickHouse):</p>
+<table><tr><th>Fuente</th><th>Qué aporta</th></tr>
+<tr><td><code>prod_strategy.*</code> · telemetría del bot en ClickHouse</td><td>Telemetría del bot: estados, volumen, inventario, participación, latencias, configuración del día.</td></tr>
+<tr><td><code>historical.connector_books</code> · libro de mercado en ClickHouse</td><td>Libro de mercado (reemplaza a Rubikia): precio, spread, volumen, cola nivel 1, presión, tendencia y —en TP— las tasas implícitas.</td></tr>
+<tr><td><code>risk_manager_pnl_report</code> · PnL oficial de riesgo (ClickHouse)</td><td>PnL oficial de riesgo (realizado + no realizado) por instrumento y cuenta.</td></tr>
+<tr><td><code>trading.symbols</code> · catálogo de instrumentos</td><td>Catálogo: tipo de instrumento, moneda, tick, multiplicador de contrato.</td></tr>
+<tr><td>log de la estrategia (Lean · <code>strategy_statistics</code>)</td><td>Log histórico de la estrategia (pre-migración): spreads y latencias log-based.</td></tr>
+<tr><td>derivado en el pipe (a partir de las anteriores)</td><td>Variables construidas combinando las anteriores (normalizaciones, ratios, conversión a pesos).</td></tr>
+</table>
+
+
+<h2>Glosario de variables</h2>
+<p class=muted>94 columnas. <b>Colocar</b> = dar dinero a tasa (comprar CI / vender 24hs); <b>Tomar</b> = tomar dinero a tasa (vender CI / comprar 24hs). Bid/Offer = punta del libro. Las tasas están anualizadas (× 365 / días de liquidación).</p>
+<h3>Identificación y PnL</h3>
+<table><colgroup><col class=cv><col><col><col class=cs></colgroup><tr><th>Variable</th><th>Significado</th><th>Cálculo</th><th>Fuente</th></tr>
+<tr><td class=var>Fecha</td><td>Fecha de la rueda.</td><td>Día de operación.</td><td class=src><code>historical.connector_books</code> · libro de mercado en ClickHouse</td></tr>
+<tr><td class=var>instrumento</td><td>Bono del universo TP: AL30 (pesos), AL30D (dólar MEP), AL30C (cable).</td><td>Ticker del bono.</td><td class=src>derivado en el pipe (a partir de las anteriores)</td></tr>
+<tr><td class=var>pnl</td><td>PnL diario de la estrategia Tasa Plazos para el bono.</td><td>Tomado de la planilla del trader (única pata todavía no migrada a ClickHouse).</td><td class=src>Google Sheet del trader (planilla de PnL)</td></tr>
+<tr><td class=var>tipo_pnl</td><td>Etiqueta de la moneda/tipo del PnL cargado.</td><td>Marca de la planilla.</td><td class=src>Google Sheet del trader (planilla de PnL)</td></tr>
+<tr><td class=var>plazo</td><td>Plazo de la pata operada (CI / 24hs).</td><td>Del identificador del instrumento.</td><td class=src>derivado en el pipe (a partir de las anteriores)</td></tr>
+</table>
+<h3>Tasas pasivas implícitas (MKT_TASA_*)</h3>
+<table><colgroup><col class=cv><col><col><col class=cs></colgroup><tr><th>Variable</th><th>Significado</th><th>Cálculo</th><th>Fuente</th></tr>
+<tr><td class=var>MKT_TASA_COLOCAR_BID_PASIVO_MEDIAN</td><td>Tasa pasiva implícita de <b>colocar</b> (bid), mediana del día.</td><td><code>(P_lejano / P_cercano × ajuste_comisiones − 1) × 365 / días_liq</code>, donde P_lejano/P_cercano es el precio de la pata 24hs sobre la CI del mismo bono. Colocar/Tomar cambian el sentido del ajuste por comisiones.</td><td class=src><code>historical.connector_books</code> · libro de mercado en ClickHouse</td></tr>
+<tr><td class=var>MKT_TASA_COLOCAR_OFFER_PASIVO_MEDIAN</td><td>Tasa pasiva de <b>colocar</b> (offer), mediana.</td><td><code>(P_lejano / P_cercano × ajuste_comisiones − 1) × 365 / días_liq</code>, donde P_lejano/P_cercano es el precio de la pata 24hs sobre la CI del mismo bono. Colocar/Tomar cambian el sentido del ajuste por comisiones.</td><td class=src><code>historical.connector_books</code> · libro de mercado en ClickHouse</td></tr>
+<tr><td class=var>MKT_TASA_TOMAR_BID_PASIVO_MEDIAN</td><td>Tasa pasiva de <b>tomar</b> (bid), mediana.</td><td><code>(P_lejano / P_cercano × ajuste_comisiones − 1) × 365 / días_liq</code>, donde P_lejano/P_cercano es el precio de la pata 24hs sobre la CI del mismo bono. Colocar/Tomar cambian el sentido del ajuste por comisiones.</td><td class=src><code>historical.connector_books</code> · libro de mercado en ClickHouse</td></tr>
+<tr><td class=var>MKT_TASA_TOMAR_OFFER_PASIVO_MEDIAN</td><td>Tasa pasiva de <b>tomar</b> (offer), mediana.</td><td><code>(P_lejano / P_cercano × ajuste_comisiones − 1) × 365 / días_liq</code>, donde P_lejano/P_cercano es el precio de la pata 24hs sobre la CI del mismo bono. Colocar/Tomar cambian el sentido del ajuste por comisiones.</td><td class=src><code>historical.connector_books</code> · libro de mercado en ClickHouse</td></tr>
+<tr><td class=var>MKT_TASA_COLOCAR_BID_PASIVO_MODE</td><td>Tasa de colocar (bid), moda del día.</td><td><code>(P_lejano / P_cercano × ajuste_comisiones − 1) × 365 / días_liq</code>, donde P_lejano/P_cercano es el precio de la pata 24hs sobre la CI del mismo bono. Colocar/Tomar cambian el sentido del ajuste por comisiones. Se toma la moda en vez de la mediana.</td><td class=src><code>historical.connector_books</code> · libro de mercado en ClickHouse</td></tr>
+<tr><td class=var>MKT_TASA_COLOCAR_OFFER_PASIVO_MODE</td><td>Tasa de colocar (offer), moda.</td><td><code>(P_lejano / P_cercano × ajuste_comisiones − 1) × 365 / días_liq</code>, donde P_lejano/P_cercano es el precio de la pata 24hs sobre la CI del mismo bono. Colocar/Tomar cambian el sentido del ajuste por comisiones. Moda.</td><td class=src><code>historical.connector_books</code> · libro de mercado en ClickHouse</td></tr>
+<tr><td class=var>MKT_TASA_TOMAR_BID_PASIVO_MODE</td><td>Tasa de tomar (bid), moda.</td><td><code>(P_lejano / P_cercano × ajuste_comisiones − 1) × 365 / días_liq</code>, donde P_lejano/P_cercano es el precio de la pata 24hs sobre la CI del mismo bono. Colocar/Tomar cambian el sentido del ajuste por comisiones. Moda.</td><td class=src><code>historical.connector_books</code> · libro de mercado en ClickHouse</td></tr>
+<tr><td class=var>MKT_TASA_TOMAR_OFFER_PASIVO_MODE</td><td>Tasa de tomar (offer), moda.</td><td><code>(P_lejano / P_cercano × ajuste_comisiones − 1) × 365 / días_liq</code>, donde P_lejano/P_cercano es el precio de la pata 24hs sobre la CI del mismo bono. Colocar/Tomar cambian el sentido del ajuste por comisiones. Moda.</td><td class=src><code>historical.connector_books</code> · libro de mercado en ClickHouse</td></tr>
+<tr><td class=var>MKT_TASA_TASACOLOCARBIDPASIVO_MEAN</td><td>Tasa de colocar (bid), media del día.</td><td><code>(P_lejano / P_cercano × ajuste_comisiones − 1) × 365 / días_liq</code>, donde P_lejano/P_cercano es el precio de la pata 24hs sobre la CI del mismo bono. Colocar/Tomar cambian el sentido del ajuste por comisiones. Media.</td><td class=src><code>historical.connector_books</code> · libro de mercado en ClickHouse</td></tr>
+<tr><td class=var>MKT_TASA_TASACOLOCAROFFERPASIVO_MEAN</td><td>Tasa de colocar (offer), media.</td><td><code>(P_lejano / P_cercano × ajuste_comisiones − 1) × 365 / días_liq</code>, donde P_lejano/P_cercano es el precio de la pata 24hs sobre la CI del mismo bono. Colocar/Tomar cambian el sentido del ajuste por comisiones. Media.</td><td class=src><code>historical.connector_books</code> · libro de mercado en ClickHouse</td></tr>
+<tr><td class=var>MKT_TASA_TASATOMARBIDPASIVO_MEAN</td><td>Tasa de tomar (bid), media.</td><td><code>(P_lejano / P_cercano × ajuste_comisiones − 1) × 365 / días_liq</code>, donde P_lejano/P_cercano es el precio de la pata 24hs sobre la CI del mismo bono. Colocar/Tomar cambian el sentido del ajuste por comisiones. Media.</td><td class=src><code>historical.connector_books</code> · libro de mercado en ClickHouse</td></tr>
+<tr><td class=var>MKT_TASA_TASATOMAROFFERPASIVO_MEAN</td><td>Tasa de tomar (offer), media.</td><td><code>(P_lejano / P_cercano × ajuste_comisiones − 1) × 365 / días_liq</code>, donde P_lejano/P_cercano es el precio de la pata 24hs sobre la CI del mismo bono. Colocar/Tomar cambian el sentido del ajuste por comisiones. Media.</td><td class=src><code>historical.connector_books</code> · libro de mercado en ClickHouse</td></tr>
+</table>
+<h3>Spread de tasa vs caución</h3>
+<table><colgroup><col class=cv><col><col><col class=cs></colgroup><tr><th>Variable</th><th>Significado</th><th>Cálculo</th><th>Fuente</th></tr>
+<tr><td class=var>MKT_SPREAD_TASA_COLOCAR_BID_PASIVO_MEDIAN_CAUCION</td><td>Spread entre la tasa de colocar (bid) y la caución.</td><td><code>tasa_colocar_bid − tasa_caución</code>, mediana.</td><td class=src>derivado en el pipe (a partir de las anteriores)</td></tr>
+<tr><td class=var>MKT_SPREAD_TASA_COLOCAR_OFFER_PASIVO_MEDIAN_CAUCION</td><td>Spread tasa colocar (offer) vs caución.</td><td><code>tasa − caución</code>, mediana.</td><td class=src>derivado en el pipe (a partir de las anteriores)</td></tr>
+<tr><td class=var>MKT_SPREAD_TASA_TOMAR_BID_PASIVO_MEDIAN_CAUCION</td><td>Spread tasa tomar (bid) vs caución.</td><td><code>tasa − caución</code>, mediana.</td><td class=src>derivado en el pipe (a partir de las anteriores)</td></tr>
+<tr><td class=var>MKT_SPREAD_TASA_TOMAR_OFFER_PASIVO_MEDIAN_CAUCION</td><td>Spread tasa tomar (offer) vs caución.</td><td><code>tasa − caución</code>, mediana.</td><td class=src>derivado en el pipe (a partir de las anteriores)</td></tr>
+</table>
+<h3>Volatilidad intradía de tasa</h3>
+<table><colgroup><col class=cv><col><col><col class=cs></colgroup><tr><th>Variable</th><th>Significado</th><th>Cálculo</th><th>Fuente</th></tr>
+<tr><td class=var>MKT_INTRADAY_VOLATILITY_TASA_COLOCAR_BID_PASIVO_MEDIAN</td><td>Volatilidad intradía de la tasa de colocar (bid).</td><td>Dispersión intradía (desvío) de la serie de tasa.</td><td class=src>derivado en el pipe (a partir de las anteriores)</td></tr>
+<tr><td class=var>MKT_INTRADAY_VOLATILITY_TASA_COLOCAR_OFFER_PASIVO_MEDIAN</td><td>Volatilidad intradía de la tasa de colocar (offer).</td><td>Desvío intradía de la tasa.</td><td class=src>derivado en el pipe (a partir de las anteriores)</td></tr>
+<tr><td class=var>MKT_INTRADAY_VOLATILITY_TASA_TOMAR_BID_PASIVO_MEDIAN</td><td>Volatilidad intradía de la tasa de tomar (bid).</td><td>Desvío intradía de la tasa.</td><td class=src>derivado en el pipe (a partir de las anteriores)</td></tr>
+<tr><td class=var>MKT_INTRADAY_VOLATILITY_TASA_TOMAR_OFFER_PASIVO_MEDIAN</td><td>Volatilidad intradía de la tasa de tomar (offer).</td><td>Desvío intradía de la tasa.</td><td class=src>derivado en el pipe (a partir de las anteriores)</td></tr>
+</table>
+<h3>Tasas agregadas y diferencias</h3>
+<table><colgroup><col class=cv><col><col><col class=cs></colgroup><tr><th>Variable</th><th>Significado</th><th>Cálculo</th><th>Fuente</th></tr>
+<tr><td class=var>mean_tomar</td><td>Tasa media de tomar del día.</td><td>media de las tasas de tomar (bid/offer).</td><td class=src>derivado en el pipe (a partir de las anteriores)</td></tr>
+<tr><td class=var>mean_colocar</td><td>Tasa media de colocar del día.</td><td>media de las tasas de colocar (bid/offer).</td><td class=src>derivado en el pipe (a partir de las anteriores)</td></tr>
+<tr><td class=var>diff_mean_tomar_vs_mejor</td><td>Diferencia entre la tasa media de tomar y la mejor tasa de tomar disponible.</td><td><code>mean_tomar − mejor_tasa_tomar</code>.</td><td class=src>derivado en el pipe (a partir de las anteriores)</td></tr>
+<tr><td class=var>diff_mean_tomar_vs_peor</td><td>Diferencia entre la tasa media de tomar y la peor tasa de tomar.</td><td><code>mean_tomar − peor_tasa_tomar</code>.</td><td class=src>derivado en el pipe (a partir de las anteriores)</td></tr>
+<tr><td class=var>diff_mean_colocar_vs_mejor</td><td>Diferencia entre la tasa media de colocar y la mejor tasa de colocar.</td><td><code>mean_colocar − mejor_tasa_colocar</code>.</td><td class=src>derivado en el pipe (a partir de las anteriores)</td></tr>
+<tr><td class=var>diff_mean_colocar_vs_peor</td><td>Diferencia entre la tasa media de colocar y la peor tasa de colocar.</td><td><code>mean_colocar − peor_tasa_colocar</code>.</td><td class=src>derivado en el pipe (a partir de las anteriores)</td></tr>
+<tr><td class=var>LOG_CAUCION_IQR</td><td>Rango intercuartil de la tasa de caución suavizada del día (dispersión).</td><td>IQR del campo <code>Media</code> de <code>[CONFIGURACION]</code> en el log (o caución de CH).</td><td class=src>log de la estrategia (Lean · <code>strategy_statistics</code>)</td></tr>
+</table>
+<h3>Microestructura del bono (MKT_)</h3>
+<table><colgroup><col class=cv><col><col><col class=cs></colgroup><tr><th>Variable</th><th>Significado</th><th>Cálculo</th><th>Fuente</th></tr>
+<tr><td class=var>MKT_SPREAD_TICKS</td><td>Spread del bono en ticks (mediana).</td><td>mediana de <code>(offer − bid)/tick</code>.</td><td class=src><code>historical.connector_books</code> · libro de mercado en ClickHouse</td></tr>
+<tr><td class=var>MKT_MEAN_SPREAD_TICKS</td><td>Spread medio del bono en ticks, ponderado por tiempo.</td><td>media temporal de <code>(offer − bid)/tick</code>.</td><td class=src><code>historical.connector_books</code> · libro de mercado en ClickHouse</td></tr>
+<tr><td class=var>MKT_TICK_SIZE</td><td>Tick del bono.</td><td>Del libro/catálogo.</td><td class=src><code>historical.connector_books</code> · libro de mercado en ClickHouse</td></tr>
+<tr><td class=var>MKT_VOLUME_NOM</td><td>Volumen del mercado por hora.</td><td><code>MKT_VOLUME / ventana</code>.</td><td class=src><code>historical.connector_books</code> · libro de mercado en ClickHouse</td></tr>
+<tr><td class=var>MKT_VOLUME</td><td>Volumen nominal del mercado (acumulado del día).</td><td>Suma de nominales de los trades.</td><td class=src><code>historical.connector_books</code> · libro de mercado en ClickHouse</td></tr>
+<tr><td class=var>MKT_INTERTRADE_TIME_SEC</td><td>Tiempo medio entre trades (seg).</td><td>media entre trades consecutivos.</td><td class=src><code>historical.connector_books</code> · libro de mercado en ClickHouse</td></tr>
+<tr><td class=var>MKT_N1_UPDATE_SEC</td><td>Tiempo medio entre cambios de precio en nivel 1 (seg).</td><td>media del intervalo de actualización del tope.</td><td class=src><code>historical.connector_books</code> · libro de mercado en ClickHouse</td></tr>
+<tr><td class=var>MKT_VOLATILITY_SPREAD</td><td>Volatilidad de precio en unidades de spread.</td><td><code>(P90 − P10 del precio)/spread</code>.</td><td class=src>derivado en el pipe (a partir de las anteriores)</td></tr>
+<tr><td class=var>MKT_QUEUE_N1_NTRADES</td><td>Cola en nivel 1, en nº de trades.</td><td>Trades para agotar el nivel 1.</td><td class=src><code>historical.connector_books</code> · libro de mercado en ClickHouse</td></tr>
+<tr><td class=var>MKT_QUEUE_N1_SEC</td><td>Cola en nivel 1, en segundos.</td><td>Tiempo para agotar el nivel 1.</td><td class=src><code>historical.connector_books</code> · libro de mercado en ClickHouse</td></tr>
+</table>
+<h3>Parámetros del bot (media_* / conteo)</h3>
+<table><colgroup><col class=cv><col><col><col class=cs></colgroup><tr><th>Variable</th><th>Significado</th><th>Cálculo</th><th>Fuente</th></tr>
+<tr><td class=var>conteo_lanzamiento</td><td>Cantidad de lanzamientos/ejecuciones de la estrategia en el día.</td><td>Promedio diario del parámetro/tasa de la estrategia.</td><td class=src><code>prod_strategy</code> · parámetros de configuración del bot</td></tr>
+<tr><td class=var>media_MontoMaximoOrden</td><td>Monto máximo por orden configurado.</td><td>Promedio diario del parámetro/tasa de la estrategia.</td><td class=src><code>prod_strategy</code> · parámetros de configuración del bot</td></tr>
+<tr><td class=var>media_MontoPisoCotizacionOff</td><td>Piso de monto para cotización (offer).</td><td>Promedio diario del parámetro/tasa de la estrategia.</td><td class=src><code>prod_strategy</code> · parámetros de configuración del bot</td></tr>
+<tr><td class=var>media_MontoTechoCotizacionOff</td><td>Techo de monto para cotización (offer).</td><td>Promedio diario del parámetro/tasa de la estrategia.</td><td class=src><code>prod_strategy</code> · parámetros de configuración del bot</td></tr>
+<tr><td class=var>media_MultiplicadorMontoMaximoDescalce</td><td>Multiplicador del monto máximo de descalce permitido.</td><td>Promedio diario del parámetro/tasa de la estrategia.</td><td class=src><code>prod_strategy</code> · parámetros de configuración del bot</td></tr>
+<tr><td class=var>media_DiferenciaDiasLiquidacion</td><td>Días de liquidación entre patas (CI vs 24hs).</td><td>Promedio diario del parámetro/tasa de la estrategia.</td><td class=src><code>prod_strategy</code> · parámetros de configuración del bot</td></tr>
+<tr><td class=var>media_NominalesTecho</td><td>Techo de nominales.</td><td>Promedio diario del parámetro/tasa de la estrategia.</td><td class=src><code>prod_strategy</code> · parámetros de configuración del bot</td></tr>
+<tr><td class=var>media_NominalesPiso</td><td>Piso de nominales.</td><td>Promedio diario del parámetro/tasa de la estrategia.</td><td class=src><code>prod_strategy</code> · parámetros de configuración del bot</td></tr>
+<tr><td class=var>media_MultiplicadorContratoInstrumento</td><td>Multiplicador de contrato del instrumento.</td><td>Promedio diario del parámetro/tasa de la estrategia.</td><td class=src><code>prod_strategy</code> · parámetros de configuración del bot</td></tr>
+<tr><td class=var>media_NominalesMinimosInstrumento</td><td>Nominales mínimos operables del instrumento.</td><td>Promedio diario del parámetro/tasa de la estrategia.</td><td class=src><code>prod_strategy</code> · parámetros de configuración del bot</td></tr>
+<tr><td class=var>media_NominalesLotSizeInstrumento</td><td>Tamaño de lote del instrumento.</td><td>Promedio diario del parámetro/tasa de la estrategia.</td><td class=src><code>prod_strategy</code> · parámetros de configuración del bot</td></tr>
+<tr><td class=var>media_DerechoMercado</td><td>Derecho de mercado (costo) aplicado.</td><td>Promedio diario del parámetro/tasa de la estrategia.</td><td class=src><code>prod_strategy</code> · parámetros de configuración del bot</td></tr>
+<tr><td class=var>media_OffsetNominales</td><td>Offset de nominales aplicado a la cotización.</td><td>Promedio diario del parámetro/tasa de la estrategia.</td><td class=src><code>prod_strategy</code> · parámetros de configuración del bot</td></tr>
+<tr><td class=var>media_SpreadMejorTasaColocar</td><td>Spread respecto de la mejor tasa de colocar.</td><td>Promedio diario del parámetro/tasa de la estrategia.</td><td class=src><code>prod_strategy</code> · parámetros de configuración del bot</td></tr>
+<tr><td class=var>media_SpreadPeorTasaColocar</td><td>Spread respecto de la peor tasa de colocar.</td><td>Promedio diario del parámetro/tasa de la estrategia.</td><td class=src><code>prod_strategy</code> · parámetros de configuración del bot</td></tr>
+<tr><td class=var>media_SpreadMejorTasaTomar</td><td>Spread respecto de la mejor tasa de tomar.</td><td>Promedio diario del parámetro/tasa de la estrategia.</td><td class=src><code>prod_strategy</code> · parámetros de configuración del bot</td></tr>
+<tr><td class=var>media_SpreadPeorTasaTomar</td><td>Spread respecto de la peor tasa de tomar.</td><td>Promedio diario del parámetro/tasa de la estrategia.</td><td class=src><code>prod_strategy</code> · parámetros de configuración del bot</td></tr>
+<tr><td class=var>media_CaucionInicial</td><td>Tasa de caución inicial de referencia del día.</td><td>Promedio diario del parámetro/tasa de la estrategia.</td><td class=src><code>prod_strategy</code> · parámetros de configuración del bot</td></tr>
+<tr><td class=var>media_PisoColocar</td><td>Piso de tasa para colocar.</td><td>Promedio diario del parámetro/tasa de la estrategia.</td><td class=src><code>prod_strategy</code> · parámetros de configuración del bot</td></tr>
+<tr><td class=var>media_TechoTomar</td><td>Techo de tasa para tomar.</td><td>Promedio diario del parámetro/tasa de la estrategia.</td><td class=src><code>prod_strategy</code> · parámetros de configuración del bot</td></tr>
+<tr><td class=var>media_PeorTasaTomar</td><td>Peor tasa de tomar del día.</td><td>Promedio diario del parámetro/tasa de la estrategia.</td><td class=src><code>prod_strategy</code> · parámetros de configuración del bot</td></tr>
+<tr><td class=var>media_MejorTasaTomar</td><td>Mejor tasa de tomar del día.</td><td>Promedio diario del parámetro/tasa de la estrategia.</td><td class=src><code>prod_strategy</code> · parámetros de configuración del bot</td></tr>
+<tr><td class=var>media_MejorTasaColocar</td><td>Mejor tasa de colocar del día.</td><td>Promedio diario del parámetro/tasa de la estrategia.</td><td class=src><code>prod_strategy</code> · parámetros de configuración del bot</td></tr>
+<tr><td class=var>media_PeorTasaColocar</td><td>Peor tasa de colocar del día.</td><td>Promedio diario del parámetro/tasa de la estrategia.</td><td class=src><code>prod_strategy</code> · parámetros de configuración del bot</td></tr>
+</table>
+<h3>Latencias (lat_int_* / lat_ext_*)</h3>
+<table><colgroup><col class=cv><col><col><col class=cs></colgroup><tr><th>Variable</th><th>Significado</th><th>Cálculo</th><th>Fuente</th></tr>
+<tr><td class=var>lat_ext_mean</td><td>Latencia <b>externa</b> — media, en ms.</td><td>media de la distribución de latencias del día (orden enviada → ACK del broker: <code>order_event PENDING_NEW → exec_report NEW</code>).</td><td class=src><code>prod_strategy.*</code> · telemetría del bot en ClickHouse</td></tr>
+<tr><td class=var>lat_ext_std</td><td>Latencia <b>externa</b> — desvío estándar, en ms.</td><td>desvío estándar de la distribución de latencias del día (orden enviada → ACK del broker: <code>order_event PENDING_NEW → exec_report NEW</code>).</td><td class=src><code>prod_strategy.*</code> · telemetría del bot en ClickHouse</td></tr>
+<tr><td class=var>lat_ext_max</td><td>Latencia <b>externa</b> — máximo, en ms.</td><td>máximo de la distribución de latencias del día (orden enviada → ACK del broker: <code>order_event PENDING_NEW → exec_report NEW</code>).</td><td class=src><code>prod_strategy.*</code> · telemetría del bot en ClickHouse</td></tr>
+<tr><td class=var>lat_ext_q0</td><td>Latencia <b>externa</b> — mínimo (P0), en ms.</td><td>mínimo (P0) de la distribución de latencias del día (orden enviada → ACK del broker: <code>order_event PENDING_NEW → exec_report NEW</code>).</td><td class=src><code>prod_strategy.*</code> · telemetría del bot en ClickHouse</td></tr>
+<tr><td class=var>lat_ext_q01</td><td>Latencia <b>externa</b> — percentil 1, en ms.</td><td>percentil 1 de la distribución de latencias del día (orden enviada → ACK del broker: <code>order_event PENDING_NEW → exec_report NEW</code>).</td><td class=src><code>prod_strategy.*</code> · telemetría del bot en ClickHouse</td></tr>
+<tr><td class=var>lat_ext_q10</td><td>Latencia <b>externa</b> — percentil 10, en ms.</td><td>percentil 10 de la distribución de latencias del día (orden enviada → ACK del broker: <code>order_event PENDING_NEW → exec_report NEW</code>).</td><td class=src><code>prod_strategy.*</code> · telemetría del bot en ClickHouse</td></tr>
+<tr><td class=var>lat_ext_q25</td><td>Latencia <b>externa</b> — percentil 25 (Q1), en ms.</td><td>percentil 25 (Q1) de la distribución de latencias del día (orden enviada → ACK del broker: <code>order_event PENDING_NEW → exec_report NEW</code>).</td><td class=src><code>prod_strategy.*</code> · telemetría del bot en ClickHouse</td></tr>
+<tr><td class=var>lat_ext_q50</td><td>Latencia <b>externa</b> — mediana (P50), en ms.</td><td>mediana (P50) de la distribución de latencias del día (orden enviada → ACK del broker: <code>order_event PENDING_NEW → exec_report NEW</code>).</td><td class=src><code>prod_strategy.*</code> · telemetría del bot en ClickHouse</td></tr>
+<tr><td class=var>lat_ext_q75</td><td>Latencia <b>externa</b> — percentil 75 (Q3), en ms.</td><td>percentil 75 (Q3) de la distribución de latencias del día (orden enviada → ACK del broker: <code>order_event PENDING_NEW → exec_report NEW</code>).</td><td class=src><code>prod_strategy.*</code> · telemetría del bot en ClickHouse</td></tr>
+<tr><td class=var>lat_ext_q90</td><td>Latencia <b>externa</b> — percentil 90, en ms.</td><td>percentil 90 de la distribución de latencias del día (orden enviada → ACK del broker: <code>order_event PENDING_NEW → exec_report NEW</code>).</td><td class=src><code>prod_strategy.*</code> · telemetría del bot en ClickHouse</td></tr>
+<tr><td class=var>lat_ext_q99</td><td>Latencia <b>externa</b> — percentil 99, en ms.</td><td>percentil 99 de la distribución de latencias del día (orden enviada → ACK del broker: <code>order_event PENDING_NEW → exec_report NEW</code>).</td><td class=src><code>prod_strategy.*</code> · telemetría del bot en ClickHouse</td></tr>
+<tr><td class=var>lat_ext_iqr</td><td>Latencia <b>externa</b> — rango intercuartil (Q3−Q1), en ms.</td><td>rango intercuartil (Q3−Q1) de la distribución de latencias del día (orden enviada → ACK del broker: <code>order_event PENDING_NEW → exec_report NEW</code>).</td><td class=src><code>prod_strategy.*</code> · telemetría del bot en ClickHouse</td></tr>
+<tr><td class=var>lat_ext_skew</td><td>Latencia <b>externa</b> — asimetría, en ms.</td><td>asimetría de la distribución de latencias del día (orden enviada → ACK del broker: <code>order_event PENDING_NEW → exec_report NEW</code>).</td><td class=src><code>prod_strategy.*</code> · telemetría del bot en ClickHouse</td></tr>
+<tr><td class=var>lat_ext_kurt</td><td>Latencia <b>externa</b> — curtosis, en ms.</td><td>curtosis de la distribución de latencias del día (orden enviada → ACK del broker: <code>order_event PENDING_NEW → exec_report NEW</code>).</td><td class=src><code>prod_strategy.*</code> · telemetría del bot en ClickHouse</td></tr>
+<tr><td class=var>lat_int_mean</td><td>Latencia <b>interna</b> — media, en ms.</td><td>media de la distribución de latencias del día (procesamiento de la estrategia: <code>start_on_data → end_on_data</code>).</td><td class=src><code>prod_strategy.*</code> · telemetría del bot en ClickHouse</td></tr>
+<tr><td class=var>lat_int_std</td><td>Latencia <b>interna</b> — desvío estándar, en ms.</td><td>desvío estándar de la distribución de latencias del día (procesamiento de la estrategia: <code>start_on_data → end_on_data</code>).</td><td class=src><code>prod_strategy.*</code> · telemetría del bot en ClickHouse</td></tr>
+<tr><td class=var>lat_int_max</td><td>Latencia <b>interna</b> — máximo, en ms.</td><td>máximo de la distribución de latencias del día (procesamiento de la estrategia: <code>start_on_data → end_on_data</code>).</td><td class=src><code>prod_strategy.*</code> · telemetría del bot en ClickHouse</td></tr>
+<tr><td class=var>lat_int_q0</td><td>Latencia <b>interna</b> — mínimo (P0), en ms.</td><td>mínimo (P0) de la distribución de latencias del día (procesamiento de la estrategia: <code>start_on_data → end_on_data</code>).</td><td class=src><code>prod_strategy.*</code> · telemetría del bot en ClickHouse</td></tr>
+<tr><td class=var>lat_int_q01</td><td>Latencia <b>interna</b> — percentil 1, en ms.</td><td>percentil 1 de la distribución de latencias del día (procesamiento de la estrategia: <code>start_on_data → end_on_data</code>).</td><td class=src><code>prod_strategy.*</code> · telemetría del bot en ClickHouse</td></tr>
+<tr><td class=var>lat_int_q10</td><td>Latencia <b>interna</b> — percentil 10, en ms.</td><td>percentil 10 de la distribución de latencias del día (procesamiento de la estrategia: <code>start_on_data → end_on_data</code>).</td><td class=src><code>prod_strategy.*</code> · telemetría del bot en ClickHouse</td></tr>
+<tr><td class=var>lat_int_q25</td><td>Latencia <b>interna</b> — percentil 25 (Q1), en ms.</td><td>percentil 25 (Q1) de la distribución de latencias del día (procesamiento de la estrategia: <code>start_on_data → end_on_data</code>).</td><td class=src><code>prod_strategy.*</code> · telemetría del bot en ClickHouse</td></tr>
+<tr><td class=var>lat_int_q50</td><td>Latencia <b>interna</b> — mediana (P50), en ms.</td><td>mediana (P50) de la distribución de latencias del día (procesamiento de la estrategia: <code>start_on_data → end_on_data</code>).</td><td class=src><code>prod_strategy.*</code> · telemetría del bot en ClickHouse</td></tr>
+<tr><td class=var>lat_int_q75</td><td>Latencia <b>interna</b> — percentil 75 (Q3), en ms.</td><td>percentil 75 (Q3) de la distribución de latencias del día (procesamiento de la estrategia: <code>start_on_data → end_on_data</code>).</td><td class=src><code>prod_strategy.*</code> · telemetría del bot en ClickHouse</td></tr>
+<tr><td class=var>lat_int_q90</td><td>Latencia <b>interna</b> — percentil 90, en ms.</td><td>percentil 90 de la distribución de latencias del día (procesamiento de la estrategia: <code>start_on_data → end_on_data</code>).</td><td class=src><code>prod_strategy.*</code> · telemetría del bot en ClickHouse</td></tr>
+<tr><td class=var>lat_int_q99</td><td>Latencia <b>interna</b> — percentil 99, en ms.</td><td>percentil 99 de la distribución de latencias del día (procesamiento de la estrategia: <code>start_on_data → end_on_data</code>).</td><td class=src><code>prod_strategy.*</code> · telemetría del bot en ClickHouse</td></tr>
+<tr><td class=var>lat_int_iqr</td><td>Latencia <b>interna</b> — rango intercuartil (Q3−Q1), en ms.</td><td>rango intercuartil (Q3−Q1) de la distribución de latencias del día (procesamiento de la estrategia: <code>start_on_data → end_on_data</code>).</td><td class=src><code>prod_strategy.*</code> · telemetría del bot en ClickHouse</td></tr>
+<tr><td class=var>lat_int_skew</td><td>Latencia <b>interna</b> — asimetría, en ms.</td><td>asimetría de la distribución de latencias del día (procesamiento de la estrategia: <code>start_on_data → end_on_data</code>).</td><td class=src><code>prod_strategy.*</code> · telemetría del bot en ClickHouse</td></tr>
+<tr><td class=var>lat_int_kurt</td><td>Latencia <b>interna</b> — curtosis, en ms.</td><td>curtosis de la distribución de latencias del día (procesamiento de la estrategia: <code>start_on_data → end_on_data</code>).</td><td class=src><code>prod_strategy.*</code> · telemetría del bot en ClickHouse</td></tr>
+</table>
+
+
+
+<h2>Peso proyectado 2026 en ClickHouse</h2>
+<div class=kpi>
+  <div class=card><b>~735</b><span>filas/año (≈ 3/día × 245 ruedas)</span></div>
+  <div class=card><b>94</b><span>columnas</span></div>
+  <div class=card><b>~0 MB</b><span>sin comprimir (≈ 600 B/fila)</span></div>
+  <div class=card><b>~0–0 MB</b><span>comprimido en CH (LZ4 → ZSTD)</span></div>
+</div>
+<p class=muted>Base: 600 B/fila medidos sobre el dataset local (proxy CSV, buena aproximación al tamaño sin comprimir en ClickHouse).
+MergeTree con compresión típica de features diarias numéricas rinde ≈ 5× (LZ4, default) a ≈ 8× (ZSTD).
+</p>
+<div class="box ok"><b>Conclusión.</b> research.tp_features pesa una fracción despreciable del espacio de ClickHouse:
+del orden de <b>~0–0 MB comprimidos por año</b>. Incluso acumulando cinco años el orden de magnitud sigue siendo de decenas de MB — irrelevante frente a las tablas de mercado (<code>connector_books</code>) que ocupan órdenes de TB.</div>
+
+
+<p class=muted style="margin-top:40px">Generado desde <code>data/data_bases/base_latencias_pnl.db</code> · pipeline pipe-stats.</p>
+</body></html>

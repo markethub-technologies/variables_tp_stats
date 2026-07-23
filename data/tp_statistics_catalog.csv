@@ -1,0 +1,65 @@
+statistics_type,n_AL30,n_AL30C,n_AL30D,categoria,usado_en_features
+a_f11_claimed_far_liquidity,427559,132373,334285,agresivo,False
+a_f11_claimed_near_liquidity,427559,132373,334285,agresivo,False
+a_f2_far_price_borrow,427559,132373,334285,agresivo,False
+a_f2_far_price_lend,427559,132373,334285,agresivo,False
+a_f2_far_size_lend,427559,132373,334285,agresivo,False
+a_f2_near_price_borrow,427559,132373,334285,agresivo,False
+a_f2_near_price_lend,427559,132373,334285,agresivo,False
+a_f2_near_size_lend,427559,132373,334285,agresivo,False
+a_f3_borrow_rate_passed_threshold,427559,132373,334285,agresivo,False
+a_f3_lend_rate_passed_threshold,427559,132373,334285,agresivo,False
+a_f6_equalized_size_borrow,427559,132373,334285,agresivo,False
+a_f6_equalized_size_lend,427559,132373,334285,agresivo,False
+a_order_price_borrow_far,427559,132373,334285,agresivo,False
+a_order_price_borrow_near,427559,132373,334285,agresivo,False
+a_order_price_lend_far,427559,132373,334285,agresivo,False
+a_order_price_lend_near,427559,132373,334285,agresivo,False
+a_order_size_borrow,427559,132373,334285,agresivo,False
+a_order_size_lend,427559,132373,334285,agresivo,False
+agg_borrow_stop_filter,427559,132373,334285,agresivo,False
+agg_lend_stop_filter,427559,132373,334285,agresivo,False
+b_current_imbalance,10249,6507,9993,balanceo,False
+bal_ask_stop_filter,10249,6507,9993,balanceo,False
+bal_bid_stop_filter,10249,6507,9993,balanceo,False
+available_cash,615090,202583,495727,generales,False
+available_titles,615090,202583,495727,generales,False
+is_tick_gap_valid,615090,202583,495727,generales,False
+far_ask_liquidity,427559,132373,334285,liquidez,False
+far_bid_liquidity,427559,132373,334285,liquidez,False
+near_ask_liquidity,427559,132373,334285,liquidez,False
+near_bid_liquidity,427559,132373,334285,liquidez,False
+p_f12_ask_off_amount,612101,202534,486103,pasivo,False
+p_f12_ask_size_off,612101,202534,486103,pasivo,False
+p_f12_bid_off_amount,612101,202534,486103,pasivo,False
+p_f12_bid_size_off,612101,202534,486103,pasivo,False
+p_f1_ask_decision_path,612101,202534,486103,pasivo,False
+p_f1_ask_quotable_term,612101,202534,486103,pasivo,False
+p_f1_bid_decision_path,612101,202534,486103,pasivo,False
+p_f1_bid_quotable_term,612101,202534,486103,pasivo,False
+p_f2_ask_sweepable_size,612101,202534,486103,pasivo,False
+p_f2_bid_sweepable_size,612101,202534,486103,pasivo,False
+p_f3_ask_random_value,612101,202534,486103,pasivo,False
+p_f3_ask_scaled_size,612101,202534,486103,pasivo,False
+p_f3_bid_random_value,612101,202534,486103,pasivo,False
+p_f3_bid_scaled_size,612101,202534,486103,pasivo,False
+p_f7_current_mismatch,612101,202534,486103,pasivo,False
+p_f7_max_mismatch,612101,202534,486103,pasivo,False
+p_f8_ask_adjusted_size,612101,202534,486103,pasivo,False
+p_f8_bid_adjusted_size,612101,202534,486103,pasivo,False
+p_quote_price_ask,612101,202534,486103,pasivo,False
+p_quote_price_bid,612101,202534,486103,pasivo,False
+p_quote_size_ask,612101,202534,486103,pasivo,False
+p_quote_size_bid,612101,202534,486103,pasivo,False
+passive_ask_stop_filter,612101,202534,486103,pasivo,False
+passive_bid_stop_filter,612101,202534,486103,pasivo,False
+rev_ask_agg_stop_filter,3180,2512,2337,reversion,False
+rev_bid_agg_stop_filter,3021,2643,2245,reversion,False
+a_f3_market_borrow_rate,427559,132373,334285,tasas (lend/borrow),False
+a_f3_market_lend_rate,427559,132373,334285,tasas (lend/borrow),False
+best_borrow_rate,69288,0,8934,tasas (lend/borrow),True
+best_lend_rate,69288,0,8934,tasas (lend/borrow),True
+worst_borrow_rate,69288,0,8934,tasas (lend/borrow),True
+worst_borrow_rate_aggressive,69288,0,8934,tasas (lend/borrow),True
+worst_lend_rate,69288,0,8934,tasas (lend/borrow),True
+worst_lend_rate_aggressive,69288,0,8934,tasas (lend/borrow),True
