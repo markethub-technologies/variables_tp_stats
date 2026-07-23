@@ -1,0 +1,244 @@
+<!doctype html><html lang=es><head><meta charset=utf-8>
+<meta name=viewport content="width=device-width,initial-scale=1">
+<title>Tasa Plazos — queries de exploración y explicabilidad</title><style>
+:root{color-scheme:light dark}
+*{box-sizing:border-box}
+body{font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;max-width:1080px;margin:0 auto;padding:28px 20px 60px;color:#1a1a1a;line-height:1.55;background:#fff}
+h1{font-size:27px;margin:0 0 2px} h2{font-size:20px;margin:38px 0 6px;border-bottom:2px solid #eaeef2;padding-bottom:6px}
+h3{font-size:15px;margin:24px 0 4px;color:#2C7FB8}
+.sub{color:#666;margin:0 0 4px}
+code{background:#f0f2f5;padding:1px 5px;border-radius:4px;font-size:12.5px;font-family:ui-monospace,Menlo,monospace}
+pre{background:#f7f9fb;border:1px solid #e6e9ee;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:12.5px;line-height:1.5;margin:6px 0}
+pre code{background:none;padding:0}
+.var{font-family:ui-monospace,Menlo,monospace;font-weight:600;font-size:12.5px}
+.box{background:#eef6fb;border-left:4px solid #2C7FB8;padding:12px 16px;border-radius:6px;margin:16px 0}
+.box.warn{background:#fdf3ec;border-color:#DD8452}
+.box.ok{background:#eef7ee;border-color:#4C9A5B}
+.util{background:#f4f0fb;border-left:3px solid #8a6ec2;padding:8px 12px;border-radius:5px;margin:2px 0 18px;font-size:13px}
+.util b{color:#6a4ca0}
+.muted{color:#777;font-size:12.5px}
+.pill{display:inline-block;background:#e8eef5;border-radius:10px;padding:1px 9px;font-size:12px;margin:2px 2px}
+table{border-collapse:collapse;width:100%;margin:8px 0;font-size:13px}
+th,td{border:1px solid #e6e9ee;padding:6px 9px;text-align:left;vertical-align:top}
+th{background:#f5f7fa;font-weight:600}
+.toc{columns:2;font-size:13px;margin:10px 0 4px}
+.toc a{color:#2C7FB8;text-decoration:none}
+@media (prefers-color-scheme:dark){
+ body{background:#14181c;color:#dfe4ea} h2{border-color:#2a323b} h1{color:#eaeef2} h3{color:#7fc3e8}
+ th{background:#1c2229} th,td{border-color:#2a323b} code,.var{background:#222932}
+ pre{background:#1a2027;border-color:#2a323b}
+ .box{background:#152532} .util{background:#201a2e;border-color:#a08bd0} .util b{color:#c3aef0}
+ .sub,.muted{color:#9aa4ae} .pill{background:#243040;color:#cfd8e2}
+ tr:nth-child(even) td{background:#171c22}
+}
+</style></head><body>
+<h1>Tasa Plazos — exploración y explicabilidad</h1>
+<p class=sub>Catálogo de queries ClickHouse para (1) descubrir <b>qué datos hay</b> y (2) reconstruir <b>por qué el bot decidió lo que decidió</b>.</p>
+<p class=muted>Base <code>prod_strategy</code> · proyecto <code>devs-strat-TasaPlazosSpot</code>. Cambiá la fecha <code>'2026-07-16'</code> por el día a analizar. Recordá: cada <code>live_id</code> = un bot = un instrumento; <code>strategy_statistics</code> se filtra por <code>live_id</code>.</p>
+
+<div class=box><b>Idea central de explicabilidad.</b> El bot deja, tick a tick, todo su "razonamiento" en <code>strategy_statistics</code>: los <b>precios y tamaños que cotizó</b>, los <b>filtros/stops que se activaron</b>, los <b>umbrales de tasa que pasó o no</b>, la <b>liquidez y el descalce</b> que veía. Uniendo eso con las <b>órdenes</b> (<code>strategy_on_order_event</code>), lo que <b>pasó en el mercado</b> (<code>connector_execution_report</code>) y el <b>contexto de libro</b> (<code>connector_books</code>) se reconstruye la cadena completa: <i>mercado → decisión → orden → resultado</i>.</div>
+
+<h2>Contenido</h2>
+<div class=toc>
+<a href="#q1">1. Qué estrategias corrieron</a><br>
+<a href="#q2">2. Qué instrumentos y en qué cuenta</a><br>
+<a href="#q3">3. Qué métricas hay (catálogo)</a><br>
+<a href="#q4">4. Encontrar el live_id de un instrumento</a><br>
+<a href="#q5">5. Resumen de una métrica</a><br>
+<a href="#q6">6. Serie temporal de una métrica</a><br>
+<a href="#q7">7. Reconstruir el contexto de decisión (pivot por tick)</a><br>
+<a href="#q8">8. ¿Por qué NO cotizó? (stop filters)</a><br>
+<a href="#q9">9. ¿Pasó el umbral de tasa?</a><br>
+<a href="#q10">10. Precio y tamaño cotizados</a><br>
+<a href="#q11">11. Liquidez y descalce que veía</a><br>
+<a href="#q12">12. De la decisión a la orden</a><br>
+<a href="#q13">13. Órdenes rechazadas y su motivo</a><br>
+<a href="#q14">14. Contexto de mercado (libro)</a><br>
+<a href="#q15">15. Latencia (rendimiento)</a><br>
+<a href="#q16">16. Resultado (PnL de riesgo)</a><br>
+</div>
+
+<h2 id=q1>Descubrimiento — qué datos hay</h2>
+
+<h3>1 · Qué estrategias corrieron un día</h3>
+<pre><code>SELECT live_id, timestamp, accounts, symbols.security_id AS simbolos
+FROM prod_strategy.strategy_execution_started
+WHERE project_name = 'devs-strat-TasaPlazosSpot'
+  AND partition_date = '2026-07-16'
+ORDER BY timestamp DESC;</code></pre>
+<div class=util><b>Utilidad:</b> punto de entrada. Te da el universo de bots del día y el <code>live_id</code> con el que se filtra todo lo demás. Un mismo instrumento puede tener varios <code>live_id</code> si el bot se relanzó.</div>
+
+<h3 id=q2>2 · Qué instrumentos y en qué cuenta</h3>
+<pre><code>SELECT arrayJoin(symbols.security_id) AS instrumento, arrayJoin(accounts) AS cuenta, count() AS lanzamientos
+FROM prod_strategy.strategy_execution_started
+WHERE project_name = 'devs-strat-TasaPlazosSpot' AND partition_date = '2026-07-16'
+GROUP BY instrumento, cuenta ORDER BY instrumento;</code></pre>
+<div class=util><b>Utilidad:</b> mapa instrumento ↔ cuenta y cuántas veces se lanzó cada uno (la variable <code>conteo_lanzamiento</code>). Sirve para elegir qué analizar.</div>
+
+<h3 id=q3>3 · Catálogo de métricas disponibles (con volumen)</h3>
+<pre><code>SELECT statistics_type, count() AS muestras, uniqExact(live_id) AS estrategias
+FROM prod_strategy.strategy_statistics
+WHERE partition_date = '2026-07-16'
+  AND live_id IN (
+      SELECT live_id FROM prod_strategy.strategy_execution_started
+      WHERE project_name = 'devs-strat-TasaPlazosSpot' AND partition_date = '2026-07-16')
+GROUP BY statistics_type ORDER BY muestras DESC;</code></pre>
+<div class=util><b>Utilidad:</b> el "diccionario vivo" de lo que el bot registra. Los prefijos cuentan la historia: <code>p_*</code>=cotización pasiva, <code>a_*</code>=modo agresivo, <code>b_*/bal_*</code>=balanceo, <code>rev_*</code>=reversión. Cada nueva estrategia migrada suma tipos → correr esto es cómo descubrís features nuevas.</div>
+
+<h3 id=q4>4 · Encontrar el live_id de un instrumento (ej. AL30 pesos)</h3>
+<pre><code>SELECT live_id, symbols.security_id, accounts
+FROM prod_strategy.strategy_execution_started
+WHERE project_name = 'devs-strat-TasaPlazosSpot' AND partition_date = '2026-07-16'
+  AND arrayExists(x -> x LIKE 'AL30-%', symbols.security_id);
+-- Variantes: 'AL30C-%' (cable), 'AL30D-%' (MEP)</code></pre>
+<div class=util><b>Utilidad:</b> traduce "quiero ver AL30" al <code>live_id</code> real. Usá el patrón como subquery en el resto para que ClickHouse encuentre solo el/los bots del instrumento.</div>
+
+<h2 id=q5>Métricas — resumen y series</h2>
+
+<h3>5 · Resumen (min/prom/máx) de una métrica por bot</h3>
+<pre><code>SELECT live_id, statistics_type,
+       min(value) AS minimo, avg(value) AS promedio, max(value) AS maximo, count() AS n
+FROM prod_strategy.strategy_statistics
+WHERE partition_date = '2026-07-16'
+  AND statistics_type IN ('best_lend_rate','worst_lend_rate','best_borrow_rate','worst_borrow_rate')
+  AND live_id IN (
+      SELECT live_id FROM prod_strategy.strategy_execution_started
+      WHERE project_name = 'devs-strat-TasaPlazosSpot' AND partition_date = '2026-07-16'
+        AND arrayExists(x -> x LIKE 'AL30-%', symbols.security_id))
+GROUP BY live_id, statistics_type ORDER BY statistics_type;</code></pre>
+<div class=util><b>Utilidad:</b> foto rápida del rango de tasas que manejó el bot. Base para comparar entre instrumentos o días.</div>
+
+<h3 id=q6>6 · Serie temporal de una métrica (por minuto)</h3>
+<pre><code>SELECT toStartOfMinute(timestamp) AS minuto, avg(value) AS valor
+FROM prod_strategy.strategy_statistics
+WHERE partition_date = '2026-07-16' AND live_id = '0000043006'
+  AND statistics_type = 'best_lend_rate'
+GROUP BY minuto ORDER BY minuto;</code></pre>
+<div class=util><b>Utilidad:</b> ver la evolución intradía de cualquier señal (tasa, tamaño, filtro). Es la materia prima de los gráficos de explicabilidad.</div>
+
+<h2 id=q7>Explicabilidad — por qué decidió lo que decidió</h2>
+
+<h3>7 · Reconstruir el contexto de decisión (pivot por tick) ⭐</h3>
+<pre><code>SELECT sequence_number,
+       any(timestamp) AS t,
+       maxIf(value, statistics_type='best_lend_rate')       AS mejor_tasa_colocar,
+       maxIf(value, statistics_type='p_quote_price_bid')    AS precio_cotizado_bid,
+       maxIf(value, statistics_type='p_quote_size_bid')     AS tamano_cotizado_bid,
+       maxIf(value, statistics_type='passive_bid_stop_filter') AS stop_pasivo_bid,
+       maxIf(value, statistics_type='p_f7_current_mismatch')   AS descalce_actual,
+       maxIf(value, statistics_type='near_bid_liquidity')      AS liquidez_bid,
+       maxIf(value, statistics_type='available_cash')          AS cash_disp
+FROM prod_strategy.strategy_statistics
+WHERE partition_date = '2026-07-16' AND live_id = '0000043006'
+  AND statistics_type IN ('best_lend_rate','p_quote_price_bid','p_quote_size_bid',
+        'passive_bid_stop_filter','p_f7_current_mismatch','near_bid_liquidity','available_cash')
+GROUP BY sequence_number ORDER BY sequence_number LIMIT 500;</code></pre>
+<div class=util><b>Utilidad:</b> <b>la query estrella</b>. Todas las métricas comparten <code>sequence_number</code>, así que pivoteando por él reconstruís, para cada tick, la fila completa: qué tasa veía, qué precio/tamaño cotizó, qué filtro estaba activo, cuánto descalce y liquidez había. Es literalmente "el estado mental del bot" en cada ciclo.</div>
+
+<h3 id=q8>8 · ¿Por qué NO cotizó? — distribución de stop filters</h3>
+<pre><code>SELECT statistics_type,
+       countIf(value != 0) AS veces_activo,
+       count() AS total,
+       round(100.0 * countIf(value != 0) / count(), 1) AS pct_activo
+FROM prod_strategy.strategy_statistics
+WHERE partition_date = '2026-07-16' AND live_id = '0000043006'
+  AND statistics_type IN ('passive_bid_stop_filter','passive_ask_stop_filter',
+        'agg_lend_stop_filter','agg_borrow_stop_filter','bal_bid_stop_filter','bal_ask_stop_filter',
+        'rev_bid_agg_stop_filter','rev_ask_agg_stop_filter')
+GROUP BY statistics_type ORDER BY pct_activo DESC;</code></pre>
+<div class=util><b>Utilidad:</b> los <code>*_stop_filter</code> son los frenos del bot. Ver qué % del día estuvo activo cada uno explica <b>por qué no cotizó o no operó</b> (ej. si <code>passive_bid_stop_filter</code> estuvo 80% activo → casi no puso bids pasivos). Es lo primero a mirar cuando "el bot no hizo nada".</div>
+
+<h3 id=q9>9 · ¿Pasó el umbral de tasa?</h3>
+<pre><code>SELECT statistics_type, countIf(value != 0) AS paso, count() AS total,
+       round(100.0*countIf(value!=0)/count(),1) AS pct_paso
+FROM prod_strategy.strategy_statistics
+WHERE partition_date = '2026-07-16' AND live_id = '0000043006'
+  AND statistics_type IN ('a_f3_lend_rate_passed_threshold','a_f3_borrow_rate_passed_threshold','is_tick_gap_valid')
+GROUP BY statistics_type;</code></pre>
+<div class=util><b>Utilidad:</b> explica la decisión de <b>modo agresivo</b>: cuántas veces la tasa de mercado superó el umbral para tomar/colocar agresivo, y si el gap de ticks era válido. Conecta con los parámetros <code>spread-*-agresivo</code>, <code>piso-colocar</code>, <code>techo-tomar</code>.</div>
+
+<h3 id=q10>10 · Precio y tamaño cotizados vs ajustados</h3>
+<pre><code>SELECT sequence_number, any(timestamp) t,
+       maxIf(value,statistics_type='p_quote_price_bid')     AS precio_bid,
+       maxIf(value,statistics_type='p_quote_price_ask')     AS precio_ask,
+       maxIf(value,statistics_type='p_f3_bid_scaled_size')  AS size_escalado_bid,
+       maxIf(value,statistics_type='p_f8_bid_adjusted_size') AS size_ajustado_bid,
+       maxIf(value,statistics_type='p_f12_bid_off_amount')  AS monto_off_bid
+FROM prod_strategy.strategy_statistics
+WHERE partition_date='2026-07-16' AND live_id='0000043006'
+  AND statistics_type IN ('p_quote_price_bid','p_quote_price_ask','p_f3_bid_scaled_size',
+        'p_f8_bid_adjusted_size','p_f12_bid_off_amount')
+GROUP BY sequence_number ORDER BY sequence_number LIMIT 500;</code></pre>
+<div class=util><b>Utilidad:</b> muestra la <b>cadena de armado de la cotización</b>: del tamaño escalado (<code>f3</code>) al ajustado (<code>f8</code>) al monto que se dejó afuera (<code>f12</code>). Explica por qué el tamaño final no fue el "teórico".</div>
+
+<h3 id=q11>11 · Liquidez y descalce que veía el bot</h3>
+<pre><code>SELECT toStartOfMinute(timestamp) AS min,
+       avgIf(value,statistics_type='near_bid_liquidity') AS liq_bid_cercano,
+       avgIf(value,statistics_type='far_ask_liquidity')  AS liq_ask_lejano,
+       avgIf(value,statistics_type='p_f7_current_mismatch') AS descalce,
+       avgIf(value,statistics_type='b_current_imbalance')   AS imbalance
+FROM prod_strategy.strategy_statistics
+WHERE partition_date='2026-07-16' AND live_id='0000043006'
+  AND statistics_type IN ('near_bid_liquidity','far_ask_liquidity','p_f7_current_mismatch','b_current_imbalance')
+GROUP BY min ORDER BY min;</code></pre>
+<div class=util><b>Utilidad:</b> el descalce (<code>mismatch</code>) y el imbalance son las variables que disparan el <b>balanceo</b>. Verlas en el tiempo explica cuándo el bot priorizó calzar patas sobre cotizar.</div>
+
+<h2 id=q12>Explicabilidad — de la decisión al mercado</h2>
+
+<h3>12 · De la decisión a la orden (eventos de orden)</h3>
+<pre><code>SELECT timestamp, side, order_type, status, execution_type,
+       price, quantity, fill_price, fill_quantity, causality, strategy_state
+FROM prod_strategy.strategy_on_order_event
+WHERE partition_date='2026-07-16' AND live_id='0000043006'
+ORDER BY timestamp LIMIT 200;</code></pre>
+<div class=util><b>Utilidad:</b> <code>causality</code> y <code>strategy_state</code> son oro para explicabilidad: dicen <b>por qué</b> se generó el evento y en <b>qué estado</b> estaba la estrategia. Es el puente entre la señal (statistics) y la orden real.</div>
+
+<h3 id=q13>13 · Órdenes rechazadas y su motivo</h3>
+<pre><code>SELECT transact_time, side, security_id, price, quantity, order_status, text
+FROM prod_strategy.connector_execution_report
+WHERE partition_date='2026-07-16' AND account='10410'
+  AND execution_type = 'REJECTED'
+ORDER BY transact_time LIMIT 200;</code></pre>
+<div class=util><b>Utilidad:</b> el campo <code>text</code> trae el mensaje del mercado/broker del rechazo. Explica fallas operativas (precio fuera de banda, sin saldo, instrumento halteado) que no se ven en la telemetría de la estrategia.</div>
+
+<h3 id=q14>14 · Contexto de mercado en el momento (libro)</h3>
+<pre><code>SELECT toStartOfMinute(transact_time) AS min,
+       avg(bid_lines.price[1])  AS mejor_bid,
+       avg(offer_lines.price[1]) AS mejor_ask,
+       avg(offer_lines.price[1]-bid_lines.price[1]) AS spread
+FROM historical.connector_books
+WHERE partition_date='2026-07-16' AND security_id='AL30-0001-C-CT-ARS'
+GROUP BY min ORDER BY min;</code></pre>
+<div class=util><b>Utilidad:</b> superpone el estado real del libro (pata CI) con lo que hizo el bot. Sin este contexto no se puede juzgar si una decisión fue correcta: la señal siempre se lee <b>contra el mercado que había</b>.</div>
+
+<h2 id=q15>Rendimiento y resultado</h2>
+
+<h3>15 · Latencia interna (procesamiento por ciclo)</h3>
+<pre><code>SELECT quantile(0.50)(us)/1000 AS q50_ms, quantile(0.99)(us)/1000 AS q99_ms, max(us)/1000 AS max_ms
+FROM (
+  SELECT dateDiff('microsecond', s.timestamp, e.timestamp) AS us
+  FROM prod_strategy.strategy_start_on_data s
+  INNER JOIN prod_strategy.strategy_end_on_data e
+    ON s.live_id=e.live_id AND s.sequence_number=e.sequence_number
+  WHERE s.partition_date='2026-07-16' AND e.partition_date='2026-07-16'
+    AND s.live_id='0000043006');</code></pre>
+<div class=util><b>Utilidad:</b> explica lentitud o ticks perdidos. Un q99 alto ayuda a entender por qué el bot llegó tarde a una oportunidad que la señal sí veía.</div>
+
+<h3 id=q16>16 · Resultado — PnL de riesgo del bono</h3>
+<pre><code>SELECT account, asset, currency, settlement_type,
+       sum(pnl) AS pnl_realizado, sum(unrealized) AS no_realizado, sum(fees) AS fees
+FROM prod_strategy.risk_manager_pnl_report
+WHERE partition_date='2026-07-16' AND asset='AL30' AND account='10410'
+GROUP BY account, asset, currency, settlement_type;</code></pre>
+<div class=util><b>Utilidad:</b> cierra el loop: decisión → orden → <b>resultado</b>. ⚠️ Es PnL de <b>riesgo</b>, no coincide con la planilla del trader; sirve para orden de magnitud y atribución por pata (CASH=CI, NEXT_DAY=24hs).</div>
+
+<div class="box warn"><b>Notas para explicabilidad.</b>
+<ul style="margin:6px 0 0">
+<li>Los <code>*_decision_path</code> y varios filtros son <b>códigos numéricos</b>; su significado exacto vive en el código de la estrategia (LinLin). La telemetría te dice <i>qué</i> valor tomó, no <i>qué significa</i> el número — para decodificarlo hace falta el mapeo del dev.</li>
+<li>Todo se alinea por <code>sequence_number</code> dentro de un <code>live_id</code>: es la clave para unir señal, orden y contexto en el mismo ciclo.</li>
+<li>Filtrá siempre por <code>partition_date</code> + <code>live_id</code>. <code>strategy_statistics</code> tiene ~378 M de filas/día.</li>
+</ul>
+</div>
+
+<p class=muted style="margin-top:40px">Complementa a <code>tp-features-mapeo.html</code> y <code>tasa-plazos-spot.md</code>. Base <code>prod_strategy</code> · <code>production_cluster</code>.</p>
+</body></html>
