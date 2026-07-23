@@ -4,3 +4,5 @@ figuras/*.png
 .ipynb_checkpoints/
 .venv/
 venv/
+build_excel_variables.py
+variables_tp_stats.xlsx
